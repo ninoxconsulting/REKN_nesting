@@ -1,0 +1,295 @@
+---
+title: "Summary Rekn Nesting"
+author: "Gen Perkins"
+date: "2025-05-13"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.Basic summary
+
+An initial compilation was completed for existing compiled Red Knot GPS/satellite data (2021 - 2023 Dec). A full analysis of this data was reported on in 2024. 
+
+Since this data compilation, other satellite tags have been deployed (Dec 2023 - current). These were obtained directly from movebank with all data extracted regardless of if metadata was available. The data was compiled from the following projects:ECCC, Southeast USA to Arctic, spring_USFWS, David Newstead and Mispillion. 
+Two of these projects (ECCC and Southeast USA to Arctic) had ongoing and new deployments for Red Knots in 2024 breeding season of 2024. 
+
+Potential there are more that were not available through movebank (Yves?, Newstead, Christian?)
+
+### Data summary: 
+
+I firstly combined data from 2023 and 2024 and reviewed which individuals were recorded within the breeding grounds. 
+
+```{r libraries, include=FALSE}
+#libraries
+library(fs)
+library(readr)
+library("rnaturalearth")
+library("rnaturalearthdata")
+library(ggplot2)
+library(stringr)
+library(readxl)
+library(foreach)
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(RColorBrewer)
+library(dplyr)
+library(sf)
+
+
+# read in the datasets 
+# pre 2023
+
+b23 <- st_read(path("temp", "birds_2023.gpkg"))  |> 
+  select(-algorithm.marked.outlier, -date_time) 
+  
+# 2024/25
+b24 <- st_read(path("temp", "birds_2024.gpkg")) |> 
+  select(-algorithm.marked.outlier, -date_time)
+
+all <- bind_rows(b24, b23) |> 
+  select(-c(stopover, movement_temp, id, bearing, gcd_m, speed_mhr ))
+
+
+# check the number of individuals
+all_birds <- length(unique(all$tag.id))
+
+# 95 tags showed arrival at breding grounds 
+
+# list of birds with the summary of movement patterns
+reknbr <- read_csv(path("data", "final_tags_list_edited.csv")) |> 
+  filter(breeding =="y") |> 
+  filter(subspecies == "rufa")
+
+reknbr_full <- reknbr |> 
+  filter(south == "y")
+  
+  
+# select the individuals with breeding locations 
+breed <- all |> filter(tag.id %in% reknbr_full$tag.id) 
+all_birds_full <- length(unique(breed$tag.id))
+
+```
+
+A total of **`r all_birds`** individuals were recorded within the breeding grounds. Of these 
+**`r all_birds_full`** individuals were recorded returning southwards and were considerd with a full breeding season. 
+
+These comprised the following tag types: 
+
+```{r tag types, echo = FALSE}
+breed <- breed |> 
+  mutate(tag.model1 = case_when(
+    tag.model == "sunbird"~ "Sunbird Solar Argos", 
+    tag.model == "Sunbird"~ "Sunbird Solar Argos", 
+    .default = tag.model))
+breed  |> 
+   st_drop_geometry() |> 
+   select(tag.id, tag.model1) |> 
+   distinct() |> 
+   group_by(tag.model1) |> 
+   count()
+
+```
+
+With the bulk of the locations (n) being recorded with Sunbird tag type. One tag was not assigned a tag.model as there was missing reference data however this appears to be a sunbird based on the frequency of recordings. 
+
+```{r echo = FALSE}
+breed  |> 
+  st_drop_geometry() |> 
+   group_by(tag.model1) |> 
+   count()
+```
+
+# 2. Accuracy and tag types
+
+Argos uses two independent methods for estimating locations: 1) via Global Positioning System (GPS) (Pinpoint GPS Argos 75) or 2) via Doppler shift calculations (Sunbird Solar Argos and Solar PTT tags) (Argos 2016). For GPS tags, such as Pinpoints, each location is acquired independently using GPS positioning which has an estimated error of less than 100 meters. Alternatively, location data from Sunbird and Solar PTT tags is based on estimating the Doppler shift in signal frequency of successive transmissions. Each Doppler shift location is categorized into an accuracy class based on the estimated uncertainty radius surrounding the location (Table 2). For example, Doppler Shift Class 1 locations are accurate to within a radius of 500 to 1500 meters.  All locations derived from the Argos System are reported in coordinates (latitude and longitude) using the World Geodetic System 1984 (WGS 84) reference system. 
+
+Table 2: Accuracy estimates (meter) for class of transmitted location derived via GPS positioning or Argos Doppler shift calculations.
+
+```
+Type,	              Class,	   Estimated Error (meters),
+
+GPS Positioning,	    G,	     <100 m
+Argos Doppler Shift,	3,	     < 250 m 
+Argos Doppler Shift,	2,	     > 250 m and < 500 m 
+Argos Doppler Shift,	1,	     > 500 m and < 1500 m
+Argos Doppler Shift,	0, 	     > 1500 m radius
+Argos Doppler Shift,	A,     	Unbounded accuracy estimation (3 messages)
+Argos Doppler Shift,	B, 	    Unbounded accuracy estimation (1 or 2 messages)
+Argos Doppler Shift,	Z,	    Invalid Location
+
+```
+Lotek PinPoint GPS – Argos 75 was less common tag model in this dataset with 8 out of 37 tags. This model was first deployed on Red Knots in 2014 and represents the first GPS tag suitable for small migrant birds with a weight of ~3.5 - 4 grams (Scarpignato et al. 2016). PinPoint tags use GPS locations and are the most accurate of the three tag types with less than 100 m of error (Argos 2016). Prior to deployment, researchers set a frequency and duration schedule at which location information is collected and the results transmitted. The frequency at which data acquisition and transmission is set will determine the overall duration of the tag, which has a finite battery capacity, limited to approximately 60 locations. 
+
+Lotek Sunbird Solar Argos and Microwave Telemetry Solar 2g PTT tags are lighter (~ 2 grams) than PinPoint tags and have solar rechargeable batteries. This consisted of 29 out of 37 tags reviewed. These tags use Doppler shift estimates rather than GPS to determine locations, which provides a lower power consumption. These two features enable these tags to maintain lightweight capability and increase duration of tracking.  Overall, the accuracy of these tags is lower (± a minimum of 250 m) as compared to GPS derived data. The Lotek Sunbird Solar Argos tag has a programable schedule for data acquisition and transmission, while the Solar 2g PTT transmits continuously. 
+
+
+
+
+## 3. Breeding location estimates 
+
+Each tag was reviewed to assess rough beginning and end dates for the individual based on a concentrated locations. This varied per individual.
+
+The plot below shows the centroid of the breeding location for each bird for summary purposes. 
+
+```{r breeding location, echo=FALSE}
+
+cc <- st_read(path("temp", "centroid_breeding.gpkg"), quiet = TRUE) 
+
+cc <- cc|> 
+  cbind(st_coordinates(cc)) |> 
+  mutate(tag.id = as.factor(tag.id))
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+Americas <- world %>% dplyr::filter(continent == "North America")
+
+# entire north America 
+global_north <- ggplot(data = Americas) +
+  geom_sf(color = "grey") +
+  geom_point(data = cc, aes(x = X, y = Y, colour = tag.id), size = 2) +#colour = "dark blue") +
+  scale_color_viridis_d() + 
+  #facet_wrap(~tag.id)+
+  # geom_point(ru, aes(x = lng, y = lat), size = 4) +
+  # xlab("Longitude") + ylab("Latitude") +
+  #coord_sf(xlim = c(-130, -20), ylim = c(-50, 80), expand = FALSE)+
+  coord_sf(xlim = c(-120, -60), ylim = c(60, 75), expand = FALSE)+
+  theme_bw()+
+  #labs(colour = "Subpopulation") + 
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position="none"
+    #legend.position = "bottom",
+    #legend.key.width = unit(3, "lines")
+  )
+
+global_north
+
+```
+
+Figure 1: Estimated centroid position for each breeding individual to complete full breeding season (2021 - 2024). n = 37 individuals. 
+
+### 3.1 Breeding Accuracy plots per individual
+
+Based on an estimated breeding window for each birds, the proportion of locations by type are as follows. The accuracy from highest to lowest is 3,2,1,0 with A and B being unknown accuracy. 
+
+
+```{r, echo = FALSE}
+
+bb <- st_read(path("temp", "full_breeding_ids_label.gpkg"), quiet = TRUE) |> 
+  filter(breeding == "y") 
+
+bb_accuracy <- bb |> 
+  st_drop_geometry() |> 
+  group_by(tag.id, argos.lc) |>
+  count()
+
+
+# plot the type of sensor.type by indiviudal and accuracy rating
+
+pt <- ggplot(bb_accuracy, aes(x = argos.lc, y = n)) +
+  geom_bar(stat = "identity") +
+  #scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00")) +
+  facet_wrap(~tag.id, scales = "free_y" )+
+  labs(x = "Tag ID", y = "number of breding record by accuracy type") +
+  #theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme_bw()# + 
+  #theme(legend.position="none")
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height = 8, fig.cap=" Figure 2. Proportion of breeding record by accuracy type per individual"}
+pt
+```
+
+
+
+## Preliminary detailed review. 
+
+I reviewed a number of individuals in detail to assess detailed breeding locations. These included tag.id #260803 and #238544  (both nesting in Southampton island )
+
+### Tag id = 260803
+
+```{r, echo = FALSE}
+
+bb <- st_read(path("temp", "full_breeding_ids_label.gpkg"), quiet = TRUE) |> 
+  filter(breeding == "y") |> 
+  filter(tag.id == 260803) 
+
+bb <- cbind(st_coordinates(bb), bb)
+
+# plot 
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+Americas <- world %>% dplyr::filter(continent == "North America")
+
+# entire north America 
+global_north <- ggplot(data = Americas) +
+  geom_sf(color = "grey") +
+  geom_point(data = bb, aes(x = X, y = Y, colour = argos.lc), size = 2) +#colour = "dark blue") +
+  scale_color_viridis_d() + 
+  #facet_wrap(~tag.id)+
+  # geom_point(ru, aes(x = lng, y = lat), size = 4) +
+  # xlab("Longitude") + ylab("Latitude") +
+  #coord_sf(xlim = c(-130, -20), ylim = c(-50, 80), expand = FALSE)+
+  coord_sf(xlim = c(-89, -81), ylim = c(62.5, 65), expand = FALSE)+
+  theme_bw()+
+  #labs(colour = "Subpopulation") + 
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    #legend.position="none"
+    legend.position = "bottom",
+    legend.key.width = unit(3, "lines")
+  )
+
+global_north
+
+```
+
+
+### Tag id = 238544
+
+```{r, echo = FALSE}
+
+bb <- st_read(path("temp", "full_breeding_ids_label.gpkg"), quiet = TRUE) |> 
+  filter(breeding == "y") |> 
+  filter(tag.id == 238544) 
+
+bb <- cbind(st_coordinates(bb), bb)
+
+# plot 
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+Americas <- world %>% dplyr::filter(continent == "North America")
+
+# entire north America 
+global_north <- ggplot(data = Americas) +
+  geom_sf(color = "grey") +
+  geom_point(data = bb, aes(x = X, y = Y, colour = argos.lc), size = 2) +#colour = "dark blue") +
+  scale_color_viridis_d() + 
+  #facet_wrap(~tag.id)+
+  # geom_point(ru, aes(x = lng, y = lat), size = 4) +
+  # xlab("Longitude") + ylab("Latitude") +
+  #coord_sf(xlim = c(-130, -20), ylim = c(-50, 80), expand = FALSE)+
+  coord_sf(xlim = c(-89, -81), ylim = c(62.5, 65), expand = FALSE)+
+  theme_bw()+
+  #labs(colour = "Subpopulation") + 
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    #legend.position="none"
+    legend.position = "bottom",
+    legend.key.width = unit(3, "lines")
+  )
+
+global_north
+
+
+```
