@@ -2,7 +2,7 @@
 title: "Summary Rekn Nesting"
 author: "Gen Perkins"
 date: "2025-05-13"
-output: html_document
+output: word_document
 ---
 
 ```{r setup, include=FALSE}
@@ -584,7 +584,7 @@ ggplot(data = all_verts) +
 
 This provides a more defined area for search radius with the potential areas of less than 1km. 
 
-```{r}
+```{r, echo = FALSE}
 area1
 ```
 
@@ -647,13 +647,12 @@ legend("topleft", pch = 15:17, legend = paste("cluster", 1), bty = "n")
 ```
 
 
-#3) NestR package
+3) NestR package
 
-This package uses similar approach to asses nest locations based on biological parameters and GPS locations. 
+This package uses similar approach to asses nest locations based on biological parameters and GPS locations. The output of the NestR package is based on a number of parameters supplied by the user. These require more information to fine tune and assess the impact on the output. 
 
 
-
-```{r, eval = FALSE, echo = FALSE, message = FALSE, warning = FALSE}
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
 
 bb_all <- st_read(path("temp", "full_breeding_ids_label.gpkg"), quiet = TRUE) |>
   filter(breeding == "y") |>
@@ -720,7 +719,6 @@ ws_nests2 <- ws_output_2$nests |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   mutate(nest_id = row_number())
 
-
 # plot the nests
 
 ggplot() +
@@ -732,6 +730,20 @@ ggplot() +
 
 ```
 
+
+## Summary 
+
+A cursory inspection of the breeding data provides a few key thoughts/information 
+
+1. There appears to be sufficient information to explore the geolocation patterns of breeding birds with widespread nesting across the Arctic. 
+
+2. Breeding records are largely from Sunbird tags and almost all are argos doppler shift estimated locations, with smallest error of <250m, This provides some challenges in narrowing down the nest locations. 
+
+3. Initial exploration of a tag thought to be stationary shows a wide distribution of records, which spans approx 12 kms square in area. 
+
+4. A number of methods exist to explore the data and estimate nest locations. These include density estimates (KDE, clustering ), recursive movement analysis (recurse, nestR). This provides a initial look at what is possible and needs further exploration. 
+
+5. Some of these packages also provide methodology to estimate nest success, however these were not yet tested in this preliminary review. 
 
 
 
