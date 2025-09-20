@@ -103,5 +103,68 @@ st_write(ddf, path(data_dir, "static_nest_trial_filtered.gpkg"), delete_dsn = TR
 
 ### Summary of tags per locations type 
 
+loc <- st_read( path(data_dir, "static_nest_trial_reference.gpkg"))
+
+dd <-  st_read(path(data_dir, "static_nest_trial_filtered.gpkg"))
+
+# join the region information 
+loc_id <- loc |> 
+  st_drop_geometry() |> 
+  select(tag_id, region)
+
+dd <- dd |> 
+  left_join(loc_id, by = "tag_id")
+
+dddf <- st_drop_geometry(dd)
+
+# review the number of units 
+type <- dddf |> 
+  group_by(tag_id, region,Loc..quality) |> 
+  summarise(n = n()) 
+
+
+# plot the location quality by tag type and group by region 
+
+p1 <- ggplot(type, aes(x = Loc..quality, y = n, fill = region )) +
+  facet_wrap(~tag_id)+#, scales = "free_y") +
+  geom_bar(stat = "identity", position = "dodge") +
+  #theme_minimal() +
+  labs(title = "Number of Locations by Quality Type and Tag id",
+       x = "Location Quality",
+       y = "Number of Locations")# +
+# scale_fill_brewer(palette = "Set1")
+
+
+# generate the percentage values instead 
+
+type_total <- dddf |> 
+  group_by(tag_id, region) |> 
+  summarise(total = n())
+
+summ <- left_join(type, type_total, by = c("tag_id", "region")) |> 
+  mutate(pct = n/total * 100) 
+ 
+# plot the location quality by tag type and group by region 
+
+p2 <- ggplot(summ , aes(x = Loc..quality, y = pct, fill = region )) +
+  facet_wrap(~tag_id)+#, scales = "free_y") +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw() +
+  labs(title = "Percent of Locations by Quality Type and Tag id",
+       x = "Location Quality",
+       y = "Number of Locations")# +
+ # scale_fill_brewer(palette = "Set1")
+
+
+
+# generate a measure of how h
+
+
+
+
+
+
+
+
 
 
