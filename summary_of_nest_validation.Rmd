@@ -1,0 +1,309 @@
+---
+title: "Summary of nest validation"
+author: "Gen Perkins"
+date: "2025-09-19"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+
+### 1.Background
+
+In 2025 field season, ECCC performed a test to check the accuracy and error margins of GPS tags to inform future nest identification and nesting success. 
+
+Nine tags were put in nesting locations in three different regions of the arctic : Cambridge Bay (Victoria Island), PCI (Prince Charles Island), EBM (Southampton Island). 
+
+
+```{r libraries, include=FALSE}
+#libraries
+#library(fs)
+#install.packages("knitr")
+library(knitr)
+#remotes::install_github("picardis/nestR", build_vignettes = TRUE, force = TRUE)
+#library(nestR)
+require(recurse)
+require(scales)
+library(readr)
+library(adehabitatHR)
+library("rnaturalearth")
+library("rnaturalearthdata")
+library(ggplot2)
+library(stringr)
+library(readxl)
+library(foreach)
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(RColorBrewer)
+library(dplyr)
+library(sf)
+library(fs)
+
+
+data_dir <- path("data", "static_nest_trial")
+
+```
+
+```{r basic summary, echo = FALSE}
+
+loc <- st_read( path(data_dir, "static_nest_trial_reference.gpkg"), quiet = TRUE)
+
+dd <-  st_read(path(data_dir, "static_nest_trial_filtered.gpkg"), quiet = TRUE)
+
+# format summary table 
+tab <- loc |> 
+  st_drop_geometry() |> 
+  select(tag_id, region, deploy_dt, retrieve_dt)
+```
+
+```{r, echo=FALSE}
+knitr::kable(tab, caption = "Table 1. Summary of tags deployed for static nest trial")
+
+```
+
+
+```{r echo = FALSE}
+cc <- loc|> 
+  cbind(st_coordinates(loc)) |> 
+  mutate(tag_id = as.factor(tag_id))
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+Americas <- world %>% dplyr::filter(continent == "North America")
+
+# entire north America 
+global_north <- ggplot(data = Americas) +
+  geom_sf(color = "grey") +
+  geom_point(data = cc, aes(x = X, y = Y, colour = tag_id,label = "region"), size = 5) +#colour = "dark blue") +
+  scale_color_viridis_d() + 
+  coord_sf(xlim = c(-120, -60), ylim = c(60, 75), expand = FALSE)+
+  theme_bw()+
+  geom_text(data = cc, aes(x = X, y = Y, label= region),size = 3,  hjust=0,vjust=2)+
+  theme(
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position="none"
+    #legend.position = "bottom",
+    #legend.key.width = unit(3, "lines")
+  )
+
+global_north
+```
+
+### 2. Accuracy and tag types
+
+Argos uses two independent methods for estimating locations: 1) via Global Positioning System (GPS) (Pinpoint GPS Argos 75) or 2) via Doppler shift calculations (Sunbird Solar Argos and Solar PTT tags) (Argos 2016). For GPS tags, such as Pinpoints, each location is acquired independently using GPS positioning which has an estimated error of less than 100 meters. Alternatively, location data from Sunbird and Solar PTT tags is based on estimating the Doppler shift in signal frequency of successive transmissions. Each Doppler shift location is categorized into an accuracy class based on the estimated uncertainty radius surrounding the location (Table 2). For example, Doppler Shift Class 1 locations are accurate to within a radius of 500 to 1500 meters.  All locations derived from the Argos System are reported in coordinates (latitude and longitude) using the World Geodetic System 1984 (WGS 84) reference system. 
+
+Table 2: Accuracy estimates (meter) for class of transmitted location derived via GPS positioning or Argos Doppler shift calculations.
+
+```
+Type,	              Class,	   Estimated Error (meters),
+
+GPS Positioning,	    G,	     <100 m
+Argos Doppler Shift,	3,	     < 250 m 
+Argos Doppler Shift,	2,	     > 250 m and < 500 m 
+Argos Doppler Shift,	1,	     > 500 m and < 1500 m
+Argos Doppler Shift,	0, 	     > 1500 m radius
+Argos Doppler Shift,	A,     	Unbounded accuracy estimation (3 messages)
+Argos Doppler Shift,	B, 	    Unbounded accuracy estimation (1 or 2 messages)
+Argos Doppler Shift,	Z,	    Invalid Location
+
+```
+
+
+### 3. Location Class and spatial quality summary per individual
+
+We can assess the proportion of locations within each of the spatial classes for each tag.
+The accuracy from highest to lowest is 3,2,1,0 with A and B being unknown accuracy. 
+
+
+```{r, summary of number of locations by quality, echo=FALSE}
+# join the region information 
+loc_id <- loc |> 
+  st_drop_geometry() |> 
+  select(tag_id, region)
+
+dd <- dd |> 
+  left_join(loc_id, by = "tag_id") |> 
+   mutate(Loc..quality= factor(Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z")))
+
+dddf <- st_drop_geometry(dd)
+# 
+# review the number of units
+type <- dddf |>
+  group_by(tag_id, region,Loc..quality) |>
+  summarise(n = n())
+# 
+# # plot the location quality by tag type and group by region 
+type$Loc..quality <- factor(type$Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z"))
+# 
+# p1 <- ggplot(type, aes(x = Loc..quality, y = n, fill = region )) +
+#   facet_wrap(~tag_id)+#, scales = "free_y") +
+#   geom_bar(stat = "identity", position = "dodge") +
+#   theme_bw() +
+#   labs(title = "Number of Locations by Quality Type and Tag id",
+#        x = "Location Quality",
+#        y = "Number of Locations")# +
+# # scale_fill_brewer(palette = "Set1")
+# 
+
+# generate the percentage values instead 
+type_total <- dddf |> 
+  group_by(tag_id, region) |> 
+  summarise(total = n())
+
+summ <- left_join(type, type_total, by = c("tag_id", "region")) |> 
+  mutate(pct = n/total * 100) 
+ 
+# plot the location quality by tag type and group by region 
+summ$Loc..quality <- factor(summ$Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z"))
+
+
+p2 <- ggplot(summ , aes(x = Loc..quality , y = pct, fill = region )) +
+  facet_wrap(~tag_id)+#, scales = "free_y") +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw() +
+  labs(title = "Percent of Locations by Quality Type and Tag id",
+       x = "Location Quality",
+       y = "Number of Locations") #+
+  #scale_fill_brewer(palette = "Set3")
+#p2
+
+# generate a measure of how h
+
+
+```
+
+
+```{r plot1, echo=FALSE, eval = FALSE}
+#p1
+```
+
+
+```{r plot2, echo=FALSE}
+p2
+```
+
+
+### 4. Spatial distribution of the error radius per spatial data type. 
+
+Each location point has an error radius, we can map these to visualize the error per location quality class. 
+
+```{r, echo = FALSE}
+
+tags <- unique(dd$tag_id)
+regions <- unique(dd$region)
+
+#285989 - 
+#PCI =  coord_sf(xlim = c(-77.2, -76.3), ylim = c(68, 68.3), expand = FALSE)+
+#CambridgeBay =  coord_sf(xlim = c(-106, -104), ylim = c(68.4, 69.7), expand = FALSE)+
+# EBM = coord_sf(xlim = c(-80, -78), ylim = c(62, 63.5), expand = FALSE)+
+   
+for(i in tags){
+
+    #i <- tags[7]
+  
+    idd <- dd |> filter(tag_id == i)
+    ireg <- unique(idd$region)
+    
+    if(ireg == "PCI"){ coords <- c(-77.2, -76.3,68, 68.3)} 
+    if(ireg == "CambridgeBay") { coords <- c(-106, -104,68.4, 69.7)}
+    if(ireg == "EBM"){ coords <- c(-84, -78,63,65)}
+
+    # error radius b ased on Error.radius
+    buffered_data <- st_buffer(idd, dist = idd$Error.radius)
+
+    bb <- cbind(st_coordinates(idd), idd)
+
+    world <- ne_countries(scale = "medium", returnclass = "sf")
+
+    Americas <- world %>% dplyr::filter(continent == "North America")
+    
+    # entire north America 
+    global_north <- ggplot(data = Americas) +
+      geom_sf(color = "grey") +
+      geom_sf(data = buffered_data, aes(fill= Loc..quality),  alpha = 0.2,lwd = 0, size = 1) +
+      geom_point(data = bb, aes(x = X, y = Y, colour = Loc..quality), size = 2) +#colour =   
+      facet_wrap(~Loc..quality)+
+      labs(title = paste0("Tag id:",i))+
+      #xlab("Longitude") + ylab("Latitude") +
+      #coord_sf(xlim = c(-77.2, -76.3), ylim = c(68, 68.4), expand = FALSE)+
+      coord_sf(xlim = c(coords[1], coords[2]), ylim = c(coords[3], coords[4]), expand = FALSE)+
+      theme_bw()+
+      theme(
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        #legend.position="none"
+        legend.position = "bottom",
+        legend.key.width = unit(3, "lines")
+      )
+    print(global_north)
+    global_north
+    
+    }
+
+```
+
+
+### 5. Nest locations vs actual location
+
+We can use location data from increasingly classes of accuracy to estimate the nest location and compare this to the actual nest location. In the following example I used tag 285989 and took a simple centroid from points are decreasing spatial resolution. Note this is a very simplistic metric and there are much better methods to account for density and outliers in estimating nest locations. 
+
+This is for demonstration purposes only. 
+
+In the following plots, all locations of the specific spatial class are shown in grey, estimated centroid of locations is shown in red and actual nest location shown in blue. 
+
+The distance (m) between the centroid and actual location is shown in the title.
+
+
+```{r, echo = FALSE, fig.height=5, fig.width=5}
+
+# Summary of 
+
+idd <- dd |>  filter(tag_id == "285989")
+iloc <- loc |>  filter(tag_id == "285989")
+
+loctype <-  unique(factor(idd$Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z")))
+
+for (i in loctype){
+  
+  #i <- loctype[2]
+  
+  iddt <- idd |> filter(Loc..quality == i) 
+  
+  iddt <- st_combine(iddt)
+  
+  cen <- st_centroid(iddt)
+  
+  #distance from actual and projected
+  dists <- st_distance(cen, iloc)
+  
+  p1<-  ggplot() +
+    geom_sf(data = iddt, color = "grey", size = 2) +
+    geom_sf(data = cen, color = "red", size = 3) +
+    geom_sf(data = iloc, color = "blue", size = 4) +
+    labs(title = paste0("Tag:",idd$tag_id[1], " Class:", i," Dist (m): ", round(as.numeric(dists),0)))+
+    theme_bw()+
+    theme(
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank(),
+      legend.position="none"
+    )
+  print(p1) 
+}
+
+
+```
+
+
+### 6. Next steps: Nest analysis.
+
+As described in the previous review of locations, I would suggest the next steps are to run through some nest algorithms (KDE, nestr etc) with increasing spatial accuracy classes for each tag and estimate the location and how it relates to actual location. 
+
+
