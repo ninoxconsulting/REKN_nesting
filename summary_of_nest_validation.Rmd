@@ -141,14 +141,14 @@ type <- dddf |>
 # # plot the location quality by tag type and group by region 
 type$Loc..quality <- factor(type$Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z"))
 # 
-# p1 <- ggplot(type, aes(x = Loc..quality, y = n, fill = region )) +
-#   facet_wrap(~tag_id)+#, scales = "free_y") +
-#   geom_bar(stat = "identity", position = "dodge") +
-#   theme_bw() +
-#   labs(title = "Number of Locations by Quality Type and Tag id",
-#        x = "Location Quality",
-#        y = "Number of Locations")# +
-# # scale_fill_brewer(palette = "Set1")
+p1 <- ggplot(type, aes(x = Loc..quality, y = n, fill = region )) +
+  facet_wrap(~tag_id)+#, scales = "free_y") +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw() +
+  labs(title = "Number of Locations by Quality Type and Tag id",
+       x = "Location Quality",
+       y = "Number of Locations")# +
+# scale_fill_brewer(palette = "Set1")
 # 
 
 # generate the percentage values instead 
@@ -173,27 +173,109 @@ p2 <- ggplot(summ , aes(x = Loc..quality , y = pct, fill = region )) +
   #scale_fill_brewer(palette = "Set3")
 #p2
 
-# generate a measure of how h
-
 
 ```
 
 
-```{r plot1, echo=FALSE, eval = FALSE}
-#p1
+```{r plot1, echo=FALSE, fig.height=5, fig.width=7}
+p1
 ```
 
 
-```{r plot2, echo=FALSE}
+```{r plot2, echo=FALSE, fig.height=5, fig.width=7}
 p2
 ```
+
+
+We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. 
+
+```{r, echo = FALSE,  fig.height=5, fig.width=8}
+
+loc_xy <- loc |> 
+  #st_drop_geometry() |> 
+  select(tag_id, region)
+
+loc_xy_df <- st_drop_geometry(loc_xy)
+
+dda <-  st_read(path(data_dir, "static_nest_trial_filtered.gpkg"), quiet = TRUE)
+
+dd_sub <- dda |> 
+  select(tag_id, Error.radius, Loc..quality) 
+
+#ddt <- dd_sub[1,]
+
+#st_distance(ddt, )
+
+tags <- unique(dd_sub$tag_id)
+
+
+#ddt <- dd_sub[1,]
+#st_distance(ddt, )
+
+tags <- unique(dd_sub$tag_id)
+
+alldist <- purrr::map(tags, function(i){
+#  i <- tags[1]
+  idd <- dd_sub |> filter(tag_id == i)
+  iloc <- loc_xy |> filter(tag_id == i)
+  
+  dists <- st_distance(idd, iloc)
+  
+  out <- cbind(idd, dists)
+
+  out
+  
+}) |> bind_rows()
+
+
+# generate a point chart with histances coloured by Loc..quality
+alldist$Loc..quality <- factor(alldist$Loc..quality, levels=c("G", "3", "2", "1", "0", "A", "B", "Z"))
+alldist <- alldist |> 
+  filter(Loc..quality != "Z")
+
+p3 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
+  geom_point()+
+  facet_wrap(~tag_id, scales = "free_y")+
+  labs(title = "Distance from Nest by Location Quality",
+       x = "Location Quality",
+       y = "Distance from Nest (m)")
+
+p3
+
+#st_write(alldist, path(data_dir, "static_nest_trial_distance_check.gpkg"), delete_dsn = TRUE)
+
+
+# error radius 
+p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists), colour = Loc..quality))+
+  geom_point()+
+  facet_wrap(~tag_id, scales = "free")+
+  labs(title = "Distance from Nest by Error Radius metric",
+       x = "Error.radius",
+       y = "Distance from Nest (m)")
+
+p4
+
+
+
+
+
+
+
+
+
+
+```
+
+
+
 
 
 ### 4. Spatial distribution of the error radius per spatial data type. 
 
 Each location point has an error radius, we can map these to visualize the error per location quality class. 
 
-```{r, echo = FALSE}
+
+```{r, echo = FALSE, eval = FALSE}
 
 tags <- unique(dd$tag_id)
 regions <- unique(dd$region)
@@ -203,6 +285,8 @@ regions <- unique(dd$region)
 #CambridgeBay =  coord_sf(xlim = c(-106, -104), ylim = c(68.4, 69.7), expand = FALSE)+
 # EBM = coord_sf(xlim = c(-80, -78), ylim = c(62, 63.5), expand = FALSE)+
    
+#tags <- tags[1]
+
 for(i in tags){
 
     #i <- tags[7]
