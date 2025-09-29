@@ -56,7 +56,11 @@ dd <-  st_read(path(data_dir, "static_nest_trial_filtered.gpkg"), quiet = TRUE)
 # format summary table 
 tab <- loc |> 
   st_drop_geometry() |> 
-  select(tag_id, region, deploy_dt, retrieve_dt)
+  select(tag_id, region, deploy_dt, retrieve_dt) |> 
+  mutate(deployment = as.Date(deploy_dt),
+         retrieval = as.Date(retrieve_dt),
+         duration_days = as.numeric(retrieval - deployment)) |> 
+  select(tag_id, region, deployment, retrieval, duration_days) 
 ```
 
 ```{r, echo=FALSE}
@@ -187,9 +191,9 @@ p2
 ```
 
 
-We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. 
+We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. In the plot below we show the distance from nest by catergory type. We can see a general trend to increase distance from the actual nest with location quality catergory, however there is a very wide variation in the distances for all catergories.
 
-```{r, echo = FALSE,  fig.height=5, fig.width=8}
+```{r, echo = FALSE,  fig.height=8, fig.width=8}
 
 loc_xy <- loc |> 
   #st_drop_geometry() |> 
@@ -233,49 +237,55 @@ alldist$Loc..quality <- factor(alldist$Loc..quality, levels=c("G", "3", "2", "1"
 alldist <- alldist |> 
   filter(Loc..quality != "Z")
 
-p3 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
-  geom_point()+
+# p3 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
+#   geom_jitter( alpha = 0.2)+
+#   facet_wrap(~tag_id, scales = "free_y")+
+#   labs(title = "Distance from Nest by Location Quality",
+#        x = "Location Quality",
+#        y = "Distance from Nest (m)")
+# 
+# p3
+
+p5 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
+  geom_boxplot()+
   facet_wrap(~tag_id, scales = "free_y")+
   labs(title = "Distance from Nest by Location Quality",
        x = "Location Quality",
        y = "Distance from Nest (m)")
 
-p3
-
-#st_write(alldist, path(data_dir, "static_nest_trial_distance_check.gpkg"), delete_dsn = TRUE)
+p5
 
 
 # error radius 
-p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists), colour = Loc..quality))+
+p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists)))+
   geom_point()+
-  facet_wrap(~tag_id, scales = "free")+
+  facet_wrap(~Loc..quality,scales = "free")+
+  #facet_wrap(~tag_id, scales = "free")+
   labs(title = "Distance from Nest by Error Radius metric",
        x = "Error.radius",
        y = "Distance from Nest (m)")
-
-p4
-
+#p4
 
 
-
-
-
-
-
-
+# bar charts
 
 ```
 
 
+Each location point has an error radius value provided in meters, we can compare the distance from actual nest to error radius to see if there is a pattern. In this graph we see the distance from nest (y) with the error radius (x). Many of these points are a greater distance than the estimated from the "error radius" values. 
+
+```{r, echo = FALSE, fig.height=8, fig.width=8}
+p4
+```
 
 
 
 ### 4. Spatial distribution of the error radius per spatial data type. 
 
-Each location point has an error radius, we can map these to visualize the error per location quality class. 
+Each location point has an error radius, we can map these to visualize the error per location quality class. Note these are based on the error radius, while the plot above shows this may be problematic so should be taken into account.
 
 
-```{r, echo = FALSE, eval = FALSE}
+```{r, echo = FALSE}
 
 tags <- unique(dd$tag_id)
 regions <- unique(dd$region)
