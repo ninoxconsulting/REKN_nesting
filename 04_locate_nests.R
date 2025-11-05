@@ -7,6 +7,8 @@ library(sp)
 library(dplyr)
 library(ggplot2)
 
+out_dir <- fs::path("output", "hr_kde")
+
 ##########################################################################
 ## method 1: Kernal density estimates
 
