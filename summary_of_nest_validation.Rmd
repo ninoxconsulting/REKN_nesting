@@ -191,7 +191,7 @@ p2
 ```
 
 
-We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. In the plot below we show the distance from nest by catergory type. We can see a general trend to increase distance from the actual nest with location quality catergory, however there is a very wide variation in the distances for all catergories.
+We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. 
 
 ```{r, echo = FALSE,  fig.height=8, fig.width=8}
 
@@ -237,55 +237,53 @@ alldist$Loc..quality <- factor(alldist$Loc..quality, levels=c("G", "3", "2", "1"
 alldist <- alldist |> 
   filter(Loc..quality != "Z")
 
-# p3 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
-#   geom_jitter( alpha = 0.2)+
-#   facet_wrap(~tag_id, scales = "free_y")+
-#   labs(title = "Distance from Nest by Location Quality",
-#        x = "Location Quality",
-#        y = "Distance from Nest (m)")
-# 
-# p3
-
-p5 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
-  geom_boxplot()+
+p3 <- ggplot(alldist, aes(Loc..quality, as.numeric(dists)))+
+  geom_jitter( alpha = 0.2)+
   facet_wrap(~tag_id, scales = "free_y")+
   labs(title = "Distance from Nest by Location Quality",
        x = "Location Quality",
        y = "Distance from Nest (m)")
 
-p5
+p3
+
+#st_write(alldist, path(data_dir, "static_nest_trial_distance_check.gpkg"), delete_dsn = TRUE)
 
 
 # error radius 
-p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists)))+
+p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists), colour = Loc..quality))+
   geom_point()+
-  facet_wrap(~Loc..quality,scales = "free")+
-  #facet_wrap(~tag_id, scales = "free")+
+  facet_wrap(~tag_id, scales = "free")+
   labs(title = "Distance from Nest by Error Radius metric",
        x = "Error.radius",
        y = "Distance from Nest (m)")
-#p4
+
+p4
 
 
 # bar charts
 
+#p5 <- 
+
+
+
+
+
+
 ```
 
 
-Each location point has an error radius value provided in meters, we can compare the distance from actual nest to error radius to see if there is a pattern. In this graph we see the distance from nest (y) with the error radius (x). Many of these points are a greater distance than the estimated from the "error radius" values. 
 
-```{r, echo = FALSE, fig.height=8, fig.width=8}
-p4
-```
+
+
 
 
 
 ### 4. Spatial distribution of the error radius per spatial data type. 
 
-Each location point has an error radius, we can map these to visualize the error per location quality class. Note these are based on the error radius, while the plot above shows this may be problematic so should be taken into account.
+Each location point has an error radius, we can map these to visualize the error per location quality class. 
 
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, eval = FALSE}
 
 tags <- unique(dd$tag_id)
 regions <- unique(dd$region)
