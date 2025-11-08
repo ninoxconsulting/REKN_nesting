@@ -276,8 +276,6 @@ out_dir <- fs::path("output", "hr_kde")
 # note this does not currently have the filter for the level of accuracy.
 # could be rerun with the high quality location only
 
-
-
 bb <- dd |>
   select(tag_id, Longitude, Latitude, Loc..date, Loc..quality)
 
@@ -317,7 +315,7 @@ for (ii in ids) {
   # mapview(ver75_sf, zcol = "id")
   # mapview(ver95_sf, zcol = "id")
 
-  st_write(ver95_sf, fs::path(out_dir, paste0(ii, "_href_97.gpkg")), append = FALSE)
+  st_write(ver95_sf, fs::path(out_dir, paste0(ii, "_href_95.gpkg")), append = FALSE)
   st_write(ver75_sf, fs::path(out_dir, paste0(ii, "_href_75.gpkg")), append = FALSE)
   st_write(ver50_sf, fs::path(out_dir, paste0(ii, "_href_50.gpkg")), append = FALSE)
 
