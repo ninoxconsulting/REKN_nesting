@@ -165,8 +165,6 @@ p2
 
 
 #We can also review the distance to the nest from each estimated point and compare to the error class rating to see how these align. 
-
-
 loc_xy <- loc |> 
   #st_drop_geometry() |> 
   select(tag_id, region)
@@ -192,7 +190,8 @@ alldist <- purrr::map(tags, function(i){
   
 }) |> bind_rows()
 
-# # output files for Dougs review 
+## output files for Dougs review 
+
 # st_write(alldist, path(data_dir, "static_nest_trial_distance_cals.gpkg"), delete_dsn = TRUE)
 # alldistdf <- cbind(alldist, st_coordinates(alldist)) 
 # alldistdf <-st_drop_geometry(alldistdf )
@@ -227,24 +226,15 @@ p4 <- ggplot(alldist, aes(Error.radius, as.numeric(dists), colour = Loc..quality
 p4
 
 
-# bar charts
-
-#p5 <- 
 
 
 
 
-
-
-
-
-
-
+#####################################################
 ### Generate kde metrics for static nest locations.
-
+#####################################################
 
 library(sf)
-# library(mapview)
 library(adehabitatHR)
 library(sp)
 library(dplyr)
@@ -287,7 +277,7 @@ ids <- unique(tdfgeo$tag_id)
 
 # test loop for a single tag
 for (ii in ids) {
-  # ii = 285989
+   #ii = 285989
   td <- tdfgeo |>
     dplyr::filter(tag_id == ii) |>
     as("Spatial")
@@ -299,41 +289,47 @@ for (ii in ids) {
   # define the parameters (h, kern, grid, extent)
 
   kde_href <- kernelUD(td, h = "href", kern = c("bivnorm"), grid = 500, extent = 2)
-  kde_href
+  #kde_href
 
-  ver95 <- getverticeshr(kde_href, 95) # get vertices for home range
-  ver95_sf <- st_as_sf(ver95) # convert to sf object
+  #ver95 <- getverticeshr(kde_href, 95) # get vertices for home range
+  #ver95_sf <- st_as_sf(ver95) # convert to sf object
 
-  ver75 <- getverticeshr(kde_href, 75)
-  ver75_sf <- st_as_sf(ver75)
+  #ver75 <- getverticeshr(kde_href, 75)
+  #ver75_sf <- st_as_sf(ver75)
 
   ver50 <- getverticeshr(kde_href, 50)
   ver50_sf <- st_as_sf(ver50)
-
+  
+  ver25 <- getverticeshr(kde_href, 25)
+  ver25_sf <- st_as_sf(ver25)
   # plot the outputs
   # mapview(ver50_sf, zcol = "id")
   # mapview(ver75_sf, zcol = "id")
   # mapview(ver95_sf, zcol = "id")
 
-  st_write(ver95_sf, fs::path(out_dir, paste0(ii, "_href_95.gpkg")), append = FALSE)
-  st_write(ver75_sf, fs::path(out_dir, paste0(ii, "_href_75.gpkg")), append = FALSE)
+  #st_write(ver95_sf, fs::path(out_dir, paste0(ii, "_href_95.gpkg")), append = FALSE)
+  #st_write(ver75_sf, fs::path(out_dir, paste0(ii, "_href_75.gpkg")), append = FALSE)
   st_write(ver50_sf, fs::path(out_dir, paste0(ii, "_href_50.gpkg")), append = FALSE)
-
+  st_write(ver25_sf, fs::path(out_dir, paste0(ii, "_href_25.gpkg")), append = FALSE)
 
   ## 3.2 kde: Least Squares Cross Validation (lscv) method.
 
   kde_lscv <- kernelUD(td, h = "LSCV", kern = c("bivnorm"), grid = 500, extent = 2)
 
-  ver95ls <- getverticeshr(kde_lscv, 95) # get vertices for home range
-  ver95ls_sf <- st_as_sf(ver95ls)
+  #ver95ls <- getverticeshr(kde_lscv, 95) # get vertices for home range
+  #ver95ls_sf <- st_as_sf(ver95ls)
 
   ver50ls <- getverticeshr(kde_lscv, 50)
   ver50ls_sf <- st_as_sf(ver50ls)
 
+  ver25ls <- getverticeshr(kde_lscv, 25)
+  ver25ls_sf <- st_as_sf(ver25ls)
+  
   # plot the outputs
   mapview(ver50ls_sf, zcol = "id")
-  st_write(ver95ls_sf, fs::path(out_dir, paste0(ii, "_lscv_95.gpkg")), append = FALSE)
+  #st_write(ver95ls_sf, fs::path(out_dir, paste0(ii, "_lscv_95.gpkg")), append = FALSE)
   st_write(ver50ls_sf, fs::path(out_dir, paste0(ii, "_lscv_50.gpkg")), append = FALSE)
+  st_write(ver25ls_sf, fs::path(out_dir, paste0(ii, "_lscv_25.gpkg")), append = FALSE)
 }
 
 ## This was not run for test sites as needs to be specific for each tag id.
@@ -375,6 +371,7 @@ for (ii in ids) {
 
 
 
+
 ############################################
 
 ### NestR package #########################
@@ -395,12 +392,41 @@ library(fs)
 library(sf)
 
 
-bb <- st_read(path("temp", "full_breeding_ids_label.gpkg"), quiet = TRUE) |>
-  filter(breeding == "y") |>
-  filter(tag.id == 260803) |>
-  filter(argos.lc %in% c("3", "2")) |>
-  dplyr::mutate(date = lubridate::ymd_hms(timestamp)) |>
-  mutate(burst = paste0(tag.id, "-", year))
+### Summary of tags per locations type
+
+loc <- st_read(path(data_dir, "static_nest_trial_reference.gpkg"))
+
+dd <- st_read(path(data_dir, "static_nest_trial_filtered.gpkg"))
+
+# join the region information
+loc_id <- loc |>
+  st_drop_geometry() |>
+  select(tag_id, region)
+
+dd <- dd |>
+  left_join(loc_id, by = "tag_id")
+
+out_dir <- fs::path("output", "hr_nestr")
+
+### Generate nesr  metrics for static nest locations.
+# note this does not currently have the filter for the level of accuracy.
+# could be rerun with the high quality location only
+
+bb <- dd |>
+  select(tag_id, Longitude, Latitude, Loc..date, Loc..quality)
+
+
+
+# loop through all the test tags...
+ids <- unique(bb$tag_id)
+ii <- ids[1]
+
+
+bb <- bb  |>
+  filter(tag_id ==ii) |>
+  filter(Loc..quality %in% c("3", "2")) |>
+  dplyr::mutate(date = lubridate::ymd_hms(Loc..date)) |>
+  mutate(burst = paste0(tag_id))
 
 bb <- cbind(st_coordinates(bb), bb)
 bb <- bb |>
@@ -409,25 +435,28 @@ bb <- bb |>
     "lat" = "Y"
   ) |>
   st_drop_geometry() |>
-  select(burst, date, tag.id, long, lat)
+  select(burst, date, tag_id, long, lat)
 
 
-# atempt to find nests
+## Attempt to find nests
 
 ws_output_1 <- find_nests(
   gps_data = bb,
-  sea_start = "06-01",
-  sea_end = "07-05",
-  nest_cycle = 34,
-  buffer = 85000,
-  min_pts = 2,
-  min_d_fix = 5,
-  min_consec = 2,
-  min_top_att = 1,
-  min_days_att = 1,
+  sea_start = "06-15",  # season breeding season 
+  sea_end = "08-03",    # ends season breeding season 
+  nest_cycle = 34,      # duration in days of complete nesting attempt 
+  buffer = 10000,       # spatial scale at which revisitation pattern is calculated. buffer (in meters)
+  # this is meant to account for spatial error around the nest from imprecise GPS location and pings near but not on the nest. 
+  # the value of the buffer needs to be set higher than GPS error. 
+  # could experiment with this one based on accuracy metrics of GPS class
+  
+  min_pts = 2,          # how many points need to be within the buffer to be considered. Can reduce influence of isolated points
+  min_d_fix = 5,        # used to counteract impact of missed consecutive days to next 
+  min_consec = 2,       # number of consecutive days a location is visited  
+  min_top_att = 1,      # % of fixes at the location on the day with maximum attendance 
+  min_days_att = 1,     # percent of days a location is visited between first anf last visit 
   discard_overlapping = FALSE
 )
-
 
 ws_output_1
 
@@ -441,7 +470,60 @@ ws_nests <- ws_output_1$nests |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   mutate(nest_id = row_number())
 
-st_write(ws_nests, path("temp", "tag_260803_nests11.gpkg"), delete_dsn = TRUE)
+st_write(ws_nests, path("output", paste0( "tag_", ii, "_nests.gpkg")), delete_dsn = TRUE)
+
+
+
+# we can further explore these parameters to identify nest and non-nest locations. 
+## situation 1 : when nest location is known 
+
+ws_output_1$nests |> 
+  filter(burst == ii) |> 
+  head()
+
+can_coords <- ws_output_1$nests |> 
+  filter(burst == ii) |> 
+  slice(1) |> 
+  select(long, lat)
+
+
+# lets check the distance between the predicted nest and the real nest 
+
+ii_loc <- loc |> 
+  filter(tag_id == ii) |> 
+  mutate(long = Deployment.Longitude,
+         lat = Deployment.Latitude) |> 
+  st_drop_geometry() |> 
+  select(long, lat)
+
+dist_m <- geosphere::distGeo(can_coords, ii_loc)
+
+
+## We can then parametise the outputs in fine detail by slecting a location close to but not within the buffer. 
+## Note this can only be done when you know the exact location. 
+## situation 2 : when nest location is not known. 
+
+
+
+can_coords <- ws_output_1$nests |> 
+  filter(burst == ii) 
+
+id_known = data.frame(burst = ii, 
+                      loc_id = 1)
+
+exploded_nest <- get_explodata(candidate_nests = can_coords,
+                               known_ids = id_known, 
+                               pick_overlapping = FALSE)
+
+
+
+
+
+
+
+
+
+
 
 
 ## Step 3: Identifying nests among revisited locations
