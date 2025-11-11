@@ -12,6 +12,10 @@ out_dir <- fs::path("output", "hr_kde")
 ##########################################################################
 ## method 1: Kernal density estimates
 
+
+bb <- st_read(path("temp", "full_breeding_ids_label.gpkg"))
+
+
 tdfgeo <- bb |>
   filter(argos.lc %in% c(2, 3)) |>
   dplyr::select(tag.id) |>
@@ -203,7 +207,7 @@ legend("topleft", pch = 15:17, legend = paste("cluster", 1:3), bty = "n")
 
 # Load the package
 
-remotes::install_github("picardis/nestR", build_vignettes = TRUE, force = TRUE)
+#remotes::install_github("picardis/nestR", build_vignettes = TRUE, force = TRUE)
 
 # note need to ensure that Jags is also downloaded
 # http://www.sourceforge.net/projects/mcmc-jags/files
@@ -243,15 +247,14 @@ ws_output_1 <- find_nests(
   sea_start = "06-01",
   sea_end = "07-05",
   nest_cycle = 34,
-  buffer = 85000,
+  buffer = 1000,
   min_pts = 2,
   min_d_fix = 5,
   min_consec = 2,
   min_top_att = 1,
   min_days_att = 1,
-  discard_overlapping = FALSE
+  discard_overlapping = TRUE # when this is FALSE there are many more options
 )
-
 
 ws_output_1
 
@@ -265,8 +268,44 @@ ws_nests <- ws_output_1$nests |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   mutate(nest_id = row_number())
 
-st_write(ws_nests, path("temp", "tag_260803_nests11.gpkg"), delete_dsn = TRUE)
+st_write(ws_nests, path("temp", "tag_260803_1000buf_T_nests.gpkg"), delete_dsn = TRUE)
 
+
+
+
+# atempt to find nests
+
+ws_output_1 <- find_nests(
+  gps_data = bb,
+  sea_start = "06-01",
+  sea_end = "07-05",
+  nest_cycle = 34,
+  buffer = 1000,
+  min_pts = 2,
+  min_d_fix = 5,
+  min_consec = 2,
+  min_top_att = 1,
+  min_days_att = 1,
+  discard_overlapping = TRUE
+)
+
+ws_output_1
+
+head(ws_output_1$nests)
+
+table(ws_output_1$nests$burst)
+
+
+# output nests as an sf object
+ws_nests <- ws_output_1$nests |>
+  st_as_sf(coords = c("long", "lat"), crs = 4326) |>
+  mutate(nest_id = row_number())
+
+st_write(ws_nests, path("temp", "tag_260803_1000buf_T_nests.gpkg"), delete_dsn = TRUE)
+
+
+
+## Attempt 2 : parameters 
 
 ## Step 3: Identifying nests among revisited locations
 
@@ -275,7 +314,7 @@ ws_output_2 <- find_nests(
   sea_start = "06-01",
   sea_end = "07-05",
   nest_cycle = 34,
-  buffer = 85000,
+  buffer = 500,
   min_pts = 2,
   min_d_fix = 5,
   min_consec = 2,
@@ -286,13 +325,12 @@ ws_output_2 <- find_nests(
 
 ws_nests <- ws_output_2
 
-
 # output nests as an sf object
 ws_nests2 <- ws_output_2$nests |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   mutate(nest_id = row_number())
 
-st_write(ws_nests2, path("temp", "tag_260803_nests22.gpkg"), delete_dsn = TRUE)
+st_write(ws_nests2, path("temp", "tag_260803_500buf_T_nests.gpkg"), delete_dsn = TRUE)
 
 
 

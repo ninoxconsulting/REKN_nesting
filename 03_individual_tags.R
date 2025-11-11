@@ -23,9 +23,11 @@ b24 <- st_read(path("temp", "birds_2024.gpkg")) |>
 
 
 all <- bind_rows(b24, b23) |> 
-  select(-c(stopover, movement_temp, id, bearing, gcd_m, speed_mhr,
+  select(-c(#stopover, movement_temp, 
+    id, bearing, gcd_m, speed_mhr,
             deploy.on.latitude, deploy.on.longitude,tag.manufacturer.name,
-            tag.id.order, animal.id,individual.local.identifier,
+            #tag.id.order, 
+    animal.id,individual.local.identifier,
             deploy.on.date,diff, location.long_prior, location.lat_prior))
 
 
